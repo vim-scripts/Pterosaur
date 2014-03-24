@@ -22,7 +22,6 @@ if exists("g:loaded_pterosaur")
 endif
 
 function! SwitchPterosaurFile(line, column, file, metaFile)
-  call cursor(a:line, a:column)
   augroup Pterosaur
     sil autocmd!
     sil autocmd FileChangedShell * echon ''
@@ -37,9 +36,14 @@ function! SwitchPterosaurFile(line, column, file, metaFile)
     sil exec "autocmd InsertLeave * call <SID>WriteMetaFile('".a:metaFile."', 0)"
     sil exec "autocmd InsertChange * call <SID>WriteMetaFile('".a:metaFile."', 1)"
   augroup END
-  startinsert
+  bd!
 
   sil exec "edit! "a:file
+  call cursor(a:line, a:column)
+
+  if mode()=="n" || mode()=="v" || mode()=="V"
+    call feedkeys("\<ESC>i",'n')
+  endif
 
 endfunction
 

@@ -43,7 +43,7 @@
 
 "use strict";
 var INFO =
-["plugin", { name: "fullVim",
+["plugin", { name: "fullvim",
              version: "0.1",
              href: "http://github.com/ardagnir/pterosaur",
              summary: "All text is vim",
@@ -58,12 +58,11 @@ var INFO =
 
 
 function update(){
-    if (pterosaurCleanupCheck !== options["fullVim"])
+    if (pterosaurCleanupCheck !== options["fullvim"])
       cleanupPterosaur();
 
-    if (!options["fullVim"] || modes.main !== modes.INSERT && modes.main !== modes.AUTOCOMPLETE && modes.main !== modes.VIM_NORMAL) {
-      if(pterFocused && modes.main !== modes.EX)
-      {
+    if (!options["fullvim"] || dactyl.focusedElement.type === "password" || modes.main !== modes.INSERT && modes.main !== modes.AUTOCOMPLETE && modes.main !== modes.VIM_NORMAL) {
+      if(pterFocused && modes.main !== modes.EX) {
         cleanupForTextbox();
         pterFocused = null
       }
@@ -78,6 +77,7 @@ function update(){
     }
 
     let val = tmpfile.read();
+
     let metadata = metaTmpfile.read().split('\n');
     vimMode = metadata[0]
     if (vimMode === "n" && modes.main === modes.INSERT)
@@ -85,11 +85,26 @@ function update(){
 
     if (vimMode === "i" && modes.main === modes.VIM_NORMAL)
       modes.pop()
+
     if (textBox) {
+        if (savedCursorStart!=null && textBox.selectionStart != savedCursorStart || savedCursorEnd!=null && textBox.selectionEnd != savedCursorEnd ) {
+          pterFocused = null;
+          return;
+        }
+
+        if (savedText!=null && textBox.value != savedText) {
+          pterFocused = null;
+          return;
+        }
+
         textBox.value = val;
+        savedText = textBox.value;
 
         if(metadata.length>2)
           textBox.setSelectionRange(metadata[1], metadata[2]);
+
+        savedCursorStart = textBox.selectionStart;
+        savedCursorEnd = textBox.selectionEnd;
 
         if (true) {
             let elem = DOM(textBox);
@@ -115,6 +130,9 @@ function cleanupForTextbox() {
 
 function setupForTextbox() {
     pterFocused = dactyl.focusedElement;
+    savedText = null;
+    savedCursorStart = null;
+    savedCursorEnd = null;
 
     textBox = config.isComposeWindow ? null : dactyl.focusedElement;
 
@@ -122,7 +140,6 @@ function setupForTextbox() {
         textBox = null;
     let line, column;
 
-    //TODO: Handle password stuff
     if (textBox) {
         var text = textBox.value;
         var pre = text.substr(0, textBox.selectionStart);
@@ -163,7 +180,9 @@ function setupForTextbox() {
     if (!tmpfile.write(text))
         throw Error(_("io.cantEncode"));
 
-    let vimCommand = 'vim --servername pterosaur --remote-expr "SwitchPterosaurFile(<line>,<column>,\'<file>\',\'<metaFile>\')"';
+    var vimCommand;
+
+    vimCommand = 'vim --servername pterosaur --remote-expr "SwitchPterosaurFile(<line>,<column>,\'<file>\',\'<metaFile>\')"';
 
     vimCommand = vimCommand.replace(/<metaFile>/, metaTmpfile.path);
     vimCommand = vimCommand.replace(/<file>/, tmpfile.path);
@@ -176,31 +195,33 @@ function setupForTextbox() {
 modes.INSERT.params.onKeyPress = function(eventList) {
     const KILL = false, PASS = true;
 
-    if (!options["fullVim"])
+    if (!options["fullvim"] || dactyl.focusedElement.type === "password")
       return PASS;
 
     let inputChar = DOM.Event.stringify(eventList[0])
 
-    if (/^<(?:.-)*(?:BS|Up|Down|Left|Right|Space|Return|Del|Tab|C-h|C-w|C-u|C-k|C-r)>$/.test(inputChar)) {
+    if (/^<(?:.-)*(?:BS|lt|Up|Down|Left|Right|Space|Return|Del|Tab|C-h|C-w|C-u|C-k|C-r)>$/.test(inputChar)) {
       //Currently, this also refreshes. I need to disable that.
       if (inputChar==="<Space>")
         io.system("printf ' ' > /tmp/pterosaur_fifo");
-      if (inputChar==="<BS>")
+      else if (inputChar==="<BS>")
         io.system("printf '\\b' > /tmp/pterosaur_fifo");
-      if (inputChar==="<Return>") {
+      else if (inputChar==="<Return>") {
         io.system("printf '\\r' > /tmp/pterosaur_fifo");
         return PASS;
       }
-      if (inputChar==="<Tab>")
+      else if (inputChar==="<Tab>")
         return PASS;
-      if (inputChar==="<Up>")
+      else if (inputChar==="<Up>")
         io.system("printf '\\e[A' > /tmp/pterosaur_fifo");
-      if (inputChar==="<Down>")
+      else if (inputChar==="<Down>")
         io.system("printf '\\e[B' > /tmp/pterosaur_fifo");
-      if (inputChar==="<Right>")
+      else if (inputChar==="<Right>")
         io.system("printf '\\e[C' > /tmp/pterosaur_fifo");
-      if (inputChar==="<Left>")
+      else if (inputChar==="<Left>")
         io.system("printf '\\e[D' > /tmp/pterosaur_fifo");
+      else if (inputChar==="<lt>")
+        io.system("printf '<' > /tmp/pterosaur_fifo");
     }
     else if (/\:|\?|\//.test(inputChar) && vimMode!='i' && vimMode!='R')
     {
@@ -220,7 +241,7 @@ modes.INSERT.params.onKeyPress = function(eventList) {
 
 function cleanupPterosaur()
 {
-    if (options["fullVim"]) {
+    if (options["fullvim"]) {
         mappings.builtin.remove(modes.INSERT, "<Space>");
         mappings.builtin.remove(modes.INSERT, "<Return>");
     }
@@ -232,19 +253,22 @@ function cleanupPterosaur()
                 return Events.PASS_THROUGH;
         });
     }
-    pterosaurCleanupCheck = options["fullVim"];
+    pterosaurCleanupCheck = options["fullvim"];
 }
 
 io.system("mkfifo /tmp/pterosaur_fifo");
 
 //TODO: This is an ugly hack. Also, the cat is necessary
 io.system("$(while killall -0 firefox; do sleep 1; done) | cat > /tmp/pterosaur_fifo &");
-io.system('sh -c \'vim --servername pterosaur -f +"set autoread" +"set noswapfile" +"set shortmess+=A" </tmp/pterosaur_fifo > /dev/null\' &');
 
-//If this doesn't match options["fullVim"] we need to perform cleanup
+//TODO: Also an ugly hack. Also the --remote is only there because on some computers vim won't create a server outside a terminal unless it has a --remote.
+io.system('sh -c \'while [ "$(vim --servername pterosaur --remote-expr 1)" != 1 ] && killall -0 firefox; do vim --servername pterosaur +"set autoread" +"set noswapfile" +"set shortmess+=A" --remote /tmp/pentatdactyl-pterosuar </tmp/pterosaur_fifo > /dev/null; done\' &');
+
+//If this doesn't match options["fullvim"] we need to perform cleanup
 var pterosaurCleanupCheck = false;
 
-options.add(["fullVim"], "Edit all text inputs using vim", "boolean", false);
+
+group.options.add(["fullvim"], "Edit all text inputs using vim", "boolean", false);
 
 modes.addMode("VIM_NORMAL", {
   char: "N",
@@ -273,6 +297,9 @@ commands.add(["vim[do]"],
     });
 
 
+var savedText = null;
+var savedCursorStart = null;
+var savedCursorEnd = null;
 var vimMode = 'i';
 var pterFocused = null; 
 var tmpfile = null;
