@@ -4,4 +4,7 @@ Pterosaur is a Vim/Pentadactyl extension that gives you the full power of Vim in
 
 Pterosaur is pretty awesome, but this is an alpha release. It still has bugs. You have been warned.
 
+Pterosaur requires eventloop.vim. (https://github.com/ardagnir/eventloop.vim)
+
 See https://github.com/ardagnir/pterosaur for more information.
+
