@@ -1,8 +1,5 @@
 This is a mirror of http://www.vim.org/scripts/script.php?script_id=4895
 
-Pterosaur is a Vim/Pentadactyl extension that lets you edit Firefox textfields using vim. (Not in a seperate window. Type vim keys directly into the textfield)
-
-Pterosaur requires eventloop.vim. (https://github.com/ardagnir/eventloop.vim)
+Pterosaur lets you edit Firefox textfields using your actual Vim, vimrc, and vim plugins. (Not in a seperate window. Type vim keys directly into the textfield)
 
 See https://github.com/ardagnir/pterosaur for more information.
-
